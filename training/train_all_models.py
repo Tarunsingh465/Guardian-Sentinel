@@ -73,10 +73,16 @@ def train_pipeline(data_path: str = None):
     else:
         X, y = generate_calibrated_training_data(n_samples=12000)
 
-    # 2. Fit Scaler and Label Encoder
-    print("\n--- [1/5] Fitting Preprocessing Transformers ---")
+    # 2. Advanced Feature Engineering & One-Hot Encoding
+    print("\n--- [1/6] Applying Feature Engineering & One-Hot Encoding ---")
+    from guardian.core.features.engineer import feature_engineer
+    X_engineered = feature_engineer.transform_batch(X)
+    print(f"Transformed features from {X.shape[1]} raw dimensions to {X_engineered.shape[1]} engineered dimensions.")
+
+    # 3. Fit Scaler, LabelEncoder and Target One-Hot Encoder
+    print("\n--- [2/6] Fitting Preprocessing Transformers & Target OHE ---")
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    X_scaled = scaler.fit_transform(X_engineered)
     joblib.dump(scaler, SCALER_PATH)
     print(f"✅ Scaler saved to {SCALER_PATH}")
 
@@ -84,6 +90,10 @@ def train_pipeline(data_path: str = None):
     y_encoded = encoder.fit_transform(y)
     joblib.dump(encoder, LABEL_ENCODER_PATH)
     print(f"✅ Label Encoder saved to {LABEL_ENCODER_PATH}")
+
+    feature_engineer.fit_target_encoder(y)
+    joblib.dump(feature_engineer.target_ohe, PROCESSED_DATA_DIR / "target_ohe.pkl")
+    print(f"✅ Target One-Hot Encoder (OHE) saved to {PROCESSED_DATA_DIR / 'target_ohe.pkl'}")
 
     # Extract Benign samples for unsupervised zero-day models
     benign_idx = np.where(y == "BENIGN")[0]

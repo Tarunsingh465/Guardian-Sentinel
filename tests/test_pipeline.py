@@ -47,7 +47,14 @@ class TestGuardianPipeline(unittest.TestCase):
         self.assertEqual(vec[3], 1.0)   # Total Bwd Packets
 
     def test_zero_day_consensus_chamber(self):
-        normal_vec = [1.0] * 78
+        # Realistic benign flow (Standard port, duration, ACK set, no conflicting control flags)
+        normal_vec = [5.0] * 78
+        normal_vec[0] = 80.0
+        normal_vec[1] = 15000.0
+        normal_vec[43] = 0.0  # FIN
+        normal_vec[44] = 0.0  # SYN
+        normal_vec[45] = 0.0  # RST
+        normal_vec[47] = 1.0  # ACK
         res_normal = hybrid_zero_day_engine.analyze(normal_vec)
         self.assertIn(res_normal["final_status"], ["NORMAL", "SUSPICIOUS"])
 

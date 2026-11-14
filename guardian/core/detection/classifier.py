@@ -14,6 +14,7 @@ from config import (
     LABEL_ENCODER_PATH
 )
 from guardian.core.agent.normalizer import normalize_attack_name
+from guardian.core.features.engineer import feature_engineer
 
 class AttackClassifier:
     def __init__(self):
@@ -33,18 +34,23 @@ class AttackClassifier:
         except Exception:
             self.model = None
 
-    def predict(self, features: list) -> Tuple[str, float, np.ndarray]:
+    def predict(self, features: list, protocol: int = 6) -> Tuple[str, float, np.ndarray]:
         """
-        Takes 78 flow features, returns (predicted_label, confidence, scaled_vector).
+        Takes 78 flow features, applies domain feature engineering & OHE (93 features),
+        returns (predicted_label, confidence, scaled_vector).
         """
         arr = np.array(features, dtype=np.float32).reshape(1, -1)
+        if arr.shape[1] == 78:
+            engineered_vec = feature_engineer.transform_single_flow(features, protocol=protocol).reshape(1, -1)
+        else:
+            engineered_vec = arr
 
         # Scale features
         if self.scaler is not None:
-            scaled = self.scaler.transform(arr)
+            scaled = self.scaler.transform(engineered_vec)
         else:
             # Fallback robust min-max normalization
-            scaled = np.clip(arr / 1000.0, -10.0, 10.0)
+            scaled = np.clip(engineered_vec / 1000.0, -10.0, 10.0)
 
         # Predict with trained model if available
         if self.model is not None and self.encoder is not None:

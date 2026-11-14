@@ -12,10 +12,14 @@ class IsolationForestDetector:
         from config import ISOLATION_FOREST_PATH
         self.model_path = model_path or ISOLATION_FOREST_PATH
         self.model = None
+        self.scaler = None
         self._load()
 
     def _load(self):
         try:
+            from config import SCALER_PATH
+            if SCALER_PATH.exists():
+                self.scaler = joblib.load(SCALER_PATH)
             if self.model_path.exists():
                 self.model = joblib.load(self.model_path)
         except Exception:
@@ -23,6 +27,12 @@ class IsolationForestDetector:
 
     def detect(self, sample: np.ndarray) -> dict:
         sample_vec = np.array(sample, dtype=np.float32).reshape(1, -1)
+        if sample_vec.shape[1] == 78:
+            from guardian.core.features.engineer import feature_engineer
+            sample_vec = feature_engineer.transform_single_flow(sample_vec[0]).reshape(1, -1)
+
+        if self.scaler is not None and float(np.abs(sample_vec).max()) > 10.0:
+            sample_vec = self.scaler.transform(sample_vec)
 
         if self.model is not None:
             pred = self.model.predict(sample_vec)
