@@ -20,6 +20,7 @@ class AutoencoderDetector:
         self.threshold_path = threshold_path or RECONSTRUCTION_THRESHOLD_PATH
         self.threshold = DEFAULT_RECONSTRUCTION_THRESHOLD
         self.model = None
+        self.pca_model = None
 
         self._load()
 
@@ -30,9 +31,14 @@ class AutoencoderDetector:
             if self.model_path.exists():
                 from tensorflow.keras.models import load_model
                 self.model = load_model(str(self.model_path))
+            else:
+                pca_path = self.model_path.parent / "pca_autoencoder.pkl"
+                if pca_path.exists():
+                    self.pca_model = joblib.load(pca_path)
         except Exception:
             # Fallback to analytical reconstruction estimation
             self.model = None
+            self.pca_model = None
 
     def reconstruction_error(self, sample: np.ndarray) -> float:
         """
@@ -42,6 +48,10 @@ class AutoencoderDetector:
 
         if self.model is not None:
             reconstructed = self.model.predict(sample_vec, verbose=0)
+            mse = float(np.mean(np.square(sample_vec - reconstructed)))
+            return mse
+        elif self.pca_model is not None:
+            reconstructed = self.pca_model.inverse_transform(self.pca_model.transform(sample_vec))
             mse = float(np.mean(np.square(sample_vec - reconstructed)))
             return mse
 
