@@ -10,6 +10,7 @@ from typing import Tuple, Dict, Any
 
 from config import (
     SUPERVISED_MODEL_PATH,
+    NEURAL_MLP_PATH,
     SCALER_PATH,
     LABEL_ENCODER_PATH
 )
@@ -19,6 +20,7 @@ from guardian.core.features.engineer import feature_engineer
 class AttackClassifier:
     def __init__(self):
         self.model = None
+        self.neural_model = None
         self.scaler = None
         self.encoder = None
         self._load()
@@ -29,15 +31,51 @@ class AttackClassifier:
                 self.scaler = joblib.load(SCALER_PATH)
             if LABEL_ENCODER_PATH.exists():
                 self.encoder = joblib.load(LABEL_ENCODER_PATH)
+            
+            # 1. Attempt to load Primary Deep Learning Keras Neural MLP
+            if NEURAL_MLP_PATH.exists():
+                try:
+                    import tensorflow as tf
+                    self.neural_model = tf.keras.models.load_model(str(NEURAL_MLP_PATH))
+                except Exception:
+                    self.neural_model = None
+
+            # 2. Load Classical Supervised Model as high-speed ensemble/fallback
             if SUPERVISED_MODEL_PATH.exists():
                 self.model = joblib.load(SUPERVISED_MODEL_PATH)
         except Exception:
             self.model = None
+            self.neural_model = None
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """Returns metadata about the active detection engine."""
+        if self.neural_model is not None:
+            return {
+                "engine_type": "DEEP_NEURAL_MLP",
+                "framework": "TensorFlow / Keras CPU",
+                "input_dim": 93,
+                "status": "ACTIVE_PRIMARY"
+            }
+        elif self.model is not None:
+            return {
+                "engine_type": "RANDOM_FOREST_ENSEMBLE",
+                "framework": "Scikit-Learn",
+                "input_dim": 93,
+                "status": "ACTIVE_FALLBACK"
+            }
+        else:
+            return {
+                "engine_type": "DOMAIN_HEURISTIC",
+                "framework": "Rule-Based Expert System",
+                "input_dim": 78,
+                "status": "HEURISTIC_STANDBY"
+            }
 
     def predict(self, features: list, protocol: int = 6) -> Tuple[str, float, np.ndarray]:
         """
         Takes 78 flow features, applies domain feature engineering & OHE (93 features),
         returns (predicted_label, confidence, scaled_vector).
+        Prioritizes Deep Neural MLP with graceful fallback to Random Forest.
         """
         arr = np.array(features, dtype=np.float32).reshape(1, -1)
         if arr.shape[1] == 78:
@@ -52,7 +90,18 @@ class AttackClassifier:
             # Fallback robust min-max normalization
             scaled = np.clip(engineered_vec / 1000.0, -10.0, 10.0)
 
-        # Predict with trained model if available
+        # 1. Predict with Primary Deep Neural MLP if available
+        if self.neural_model is not None and self.encoder is not None:
+            try:
+                probs = self.neural_model.predict(scaled, verbose=0)[0]
+                top_idx = int(np.argmax(probs))
+                conf = float(probs[top_idx])
+                raw_label = str(self.encoder.inverse_transform([top_idx])[0])
+                return normalize_attack_name(raw_label), conf, scaled
+            except Exception:
+                pass  # Fall back to classical model if tensor evaluation fails
+
+        # 2. Predict with Classical Trained Model if available
         if self.model is not None and self.encoder is not None:
             probs = self.model.predict_proba(scaled)[0]
             top_idx = int(np.argmax(probs))

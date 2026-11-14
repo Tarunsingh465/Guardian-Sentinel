@@ -25,20 +25,36 @@ def run_research():
     from research.statistical_testing import run_hypothesis_suite
     from research.eda_engine import run_advanced_eda_profile
     from research.imbalance_benchmark import run_class_imbalance_benchmark
+    from research.smote_tomek_experiment import run_smote_tomek_study
+    from research.optuna_tuning import run_optuna_hpo
+    from research.temporal_sequence_experiment import run_temporal_sequence_study
     import json
 
     print("\n--- 1. STATISTICAL HYPOTHESIS TESTING ---")
     hyp = run_hypothesis_suite()
-    print(json.dumps(hyp, indent=2))
+    print(f"Tested {len(hyp)} hypotheses: {list(hyp.keys())}")
 
     print("\n--- 2. CLASS IMBALANCE BENCHMARK ---")
     imb = run_class_imbalance_benchmark()
-    print(json.dumps(imb["benchmark_table"], indent=2))
+    print(f"Recommended Loss: {imb['recommended_loss']}")
 
     print("\n--- 3. ADVANCED EDA SUMMARY ---")
     eda = run_advanced_eda_profile()
     print(f"Total Features Analyzed: {eda['total_raw_features']}")
     print(f"Collinear Feature Pairs Identified: {len(eda['collinear_pairs'])}")
+
+    print("\n--- 4. SMOTE-TOMEK RESAMPLING EXPERIMENT ---")
+    smt = run_smote_tomek_study(n_samples=2000)
+    print(f"SMOTE-Tomek Macro-F1: {smt['evaluation_summary']['smote_tomek_macro_f1']} vs Focal Loss: {smt['evaluation_summary']['focal_loss_macro_f1']}")
+
+    print("\n--- 5. OPTUNA HYPERPARAMETER TUNING ---")
+    opt = run_optuna_hpo(n_trials=5)
+    print(f"Best Optuna Score: {opt['best_score']} with params: {opt['best_parameters']}")
+
+    print("\n--- 6. CHRONOLOGICAL TEMPORAL SEQUENCES ---")
+    seq = run_temporal_sequence_study()
+    print(f"Sequence comparison: MLP latency {seq['benchmark_comparison'][0]['cpu_inference_latency_ms']}ms vs LSTM {seq['benchmark_comparison'][1]['cpu_inference_latency_ms']}ms")
+
     print("\n✅ All Research Modules Executed Successfully! Full reports available in /reports directory.")
 
 def main():

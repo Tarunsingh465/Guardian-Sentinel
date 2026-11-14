@@ -19,6 +19,7 @@ from guardian.core.agent.explainability import (
     generate_explanation,
     generate_recommendation
 )
+from guardian.core.agent.shap_explainability import explainability_engine
 
 def analyze_network_flow(
     features: List[float],
@@ -94,6 +95,13 @@ def analyze_network_flow(
         decision=decision
     )
 
+    # 10. Compute Explainability & Local Feature Attribution
+    shap_attribution = explainability_engine.explain_flow_prediction(
+        scaled_feature_vector=scaled_vec,
+        predicted_class=final_attack_label,
+        top_k=5
+    )
+
     return {
         "source_ip": source_ip,
         "destination_ip": destination_ip,
@@ -109,5 +117,6 @@ def analyze_network_flow(
         "zero_day_analysis": zero_day_analysis,
         "firewall_action": firewall_result,
         "explanation": explanation,
-        "recommendation": recommendation
+        "recommendation": recommendation,
+        "feature_attribution": shap_attribution
     }

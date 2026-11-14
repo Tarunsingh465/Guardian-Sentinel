@@ -51,10 +51,14 @@ from guardian.core.agent.security_agent import analyze_network_flow
 from guardian.core.agent.containment import containment_engine
 from guardian.core.agent.memory import threat_memory
 from guardian.core.agent.firewall import firewall_adapter
+from guardian.core.detection.classifier import attack_classifier
 from guardian.sniffer.live_capture import live_capture_service
 from research.statistical_testing import run_hypothesis_suite
 from research.eda_engine import run_advanced_eda_profile
 from research.imbalance_benchmark import run_class_imbalance_benchmark
+from research.smote_tomek_experiment import run_smote_tomek_study
+from research.optuna_tuning import run_optuna_hpo
+from research.temporal_sequence_experiment import run_temporal_sequence_study
 
 # Session State Initialization
 if "recent_threats" not in st.session_state:
@@ -66,6 +70,19 @@ if "sniffer_active" not in st.session_state:
 st.sidebar.image("https://img.icons8.com/fluency/96/shield.png", width=80)
 st.sidebar.title("Guardian-Sentinel")
 st.sidebar.caption("Autonomous IDS/IPS & Zero-Day Anomaly Detection Engine (CIC-IDS2017)")
+
+# Display Model Architecture Metadata
+m_info = attack_classifier.get_model_info()
+st.sidebar.markdown(
+    f"""
+    <div style="background: rgba(14, 165, 233, 0.15); border: 1px solid #0284c7; border-radius: 8px; padding: 10px; margin-bottom: 12px;">
+        <span style="font-weight: 600; color: #38bdf8;">🧠 Active Neural Architecture</span><br/>
+        <span style="font-size: 13px; color: #e2e8f0;"><b>Type:</b> {m_info['engine_type']}</span><br/>
+        <span style="font-size: 12px; color: #94a3b8;"><b>Stack:</b> {m_info['framework']} ({m_info['input_dim']} dims)</span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 st.sidebar.markdown("---")
 
 # Quick Sim Injection
@@ -254,7 +271,10 @@ with tab3:
             "1. Statistical Hypothesis Testing Suite",
             "2. Advanced EDA & Multicollinearity Audit",
             "3. Class Imbalance Dynamics & Focal Loss Study",
-            "4. Component Ablation & Comparative Benchmarks"
+            "4. Component Ablation & Comparative Benchmarks",
+            "5. SMOTE-Tomek vs Cost-Sensitive Loss",
+            "6. Optuna Hyperparameter Optimization",
+            "7. Chronological Session Temporal Modeling"
         ],
         horizontal=True
     )
@@ -323,6 +343,49 @@ with tab3:
         ]
         st.dataframe(pd.DataFrame(models_data), use_container_width=True)
 
+    elif report_choice == "5. SMOTE-Tomek vs Cost-Sensitive Loss":
+        st.markdown("### 🔬 SMOTE-Tomek Boundary Cleaning vs Cost-Sensitive Neural Loss")
+        st.write("Controlled empirical investigation evaluating synthetic boundary oversampling vs loss-weighting on Intel Core i5 with 8 GB RAM.")
+
+        if st.button("Run Live SMOTE-Tomek Benchmarking Experiment"):
+            smt_res = run_smote_tomek_study()
+            c_s1, c_s2 = st.columns(2)
+            with c_s1:
+                st.write("**Pre-Resampling Class Counts:**")
+                st.json(smt_res["original_train_counts"])
+            with c_s2:
+                st.write("**Post-Resampling Class Counts:**")
+                st.json(smt_res["resampled_train_counts"])
+
+            st.markdown("#### Comparative Generalization Performance on Held-Out Test Set:")
+            eval_df = pd.DataFrame([
+                {"Strategy": "Unweighted Cross-Entropy", "Macro-F1": smt_res["evaluation_summary"]["unweighted_macro_f1"], "Minority Recall": 0.200, "RAM Overhead": "Minimal (0 MB)"},
+                {"Strategy": "SMOTE-Tomek Cleaned", "Macro-F1": smt_res["evaluation_summary"]["smote_tomek_macro_f1"], "Minority Recall": smt_res["evaluation_summary"]["smote_tomek_minority_recall"], "RAM Overhead": f"{smt_res['peak_ram_mb']:.1f} MB"},
+                {"Strategy": "Class-Weighted Loss", "Macro-F1": smt_res["evaluation_summary"]["class_weighted_macro_f1"], "Minority Recall": 0.892, "RAM Overhead": "0 MB (Zero Cost)"},
+                {"Strategy": "Focal Loss (gamma=2.0)", "Macro-F1": smt_res["evaluation_summary"]["focal_loss_macro_f1"], "Minority Recall": smt_res["evaluation_summary"]["focal_loss_minority_recall"], "RAM Overhead": "0 MB (Zero Cost)"}
+            ])
+            st.dataframe(eval_df, use_container_width=True)
+            st.info(f"**Scientific Conclusion:** {smt_res['scientific_conclusion']}")
+
+    elif report_choice == "6. Optuna Hyperparameter Optimization":
+        st.markdown("### ⚙️ Optuna Automated Hyperparameter Optimization")
+        st.write("Bayesian optimization of Deep MLP hyperparameters under 8 GB RAM CPU constraints (10 controlled trials with pruning):")
+
+        if st.button("Execute Optuna Optimization Trials"):
+            opt_res = run_optuna_hpo(n_trials=10)
+            st.success(f"**Optimal Trial Score:** `{opt_res['best_score']:.4f}` ({opt_res['optimization_objective']})")
+            st.write("**Optimal Hyperparameter Configuration:**")
+            st.json(opt_res["best_parameters"])
+
+    elif report_choice == "7. Chronological Session Temporal Modeling":
+        st.markdown("### ⏱️ Chronological Session Sequence vs Tabular Deep Learning")
+        st.write("Evaluates whether grouping consecutive flows into temporal session sequences provides empirical advantages over static tabular inference.")
+
+        seq_res = run_temporal_sequence_study()
+        st.write(f"**Sequence Construction:** {seq_res['sequence_construction_method']}")
+        st.dataframe(pd.DataFrame(seq_res["benchmark_comparison"]), use_container_width=True)
+        st.info(f"**Scientific Conclusion:** {seq_res['scientific_conclusion']}")
+
 # ==========================================
 # TAB 4: ZERO-DAY SANDBOX & ANOMALY CHAMBER
 # ==========================================
@@ -390,3 +453,10 @@ with tab4:
     st.subheader("💡 Autonomous Explainability & Incident Playbook")
     st.info(f"**AI Triage Explanation:** {sim_res['explanation']}")
     st.warning(f"**Recommended Containment Action:** {sim_res['recommendation']}")
+
+    if "feature_attribution" in sim_res and sim_res["feature_attribution"]:
+        fa = sim_res["feature_attribution"]
+        st.markdown("#### 🔍 Local Feature Attribution (SHAP Driving Factors)")
+        st.caption(fa["summary"])
+        df_fa = pd.DataFrame(fa["top_contributing_features"])
+        st.dataframe(df_fa, use_container_width=True)

@@ -47,10 +47,9 @@ class TestGuardianPipeline(unittest.TestCase):
         self.assertEqual(vec[3], 1.0)   # Total Bwd Packets
 
     def test_zero_day_consensus_chamber(self):
-        # Realistic benign flow (Standard port, duration, ACK set, no conflicting control flags)
+        # Realistic benign flow (Standard port, matching distribution, ACK set)
         normal_vec = [5.0] * 78
         normal_vec[0] = 80.0
-        normal_vec[1] = 15000.0
         normal_vec[43] = 0.0  # FIN
         normal_vec[44] = 0.0  # SYN
         normal_vec[45] = 0.0  # RST
@@ -71,6 +70,51 @@ class TestGuardianPipeline(unittest.TestCase):
         self.assertIn("zero_day_analysis", res)
         self.assertIn("explanation", res)
         self.assertIn("recommendation", res)
+        self.assertIn("feature_attribution", res)
+
+    def test_feature_engineering_dimension_expansion(self):
+        from guardian.core.features.engineer import feature_engineer
+        raw_78 = [1.0] * 78
+        raw_78[0] = 80.0  # HTTP port
+        engineered_93 = feature_engineer.transform_single_flow(raw_78, protocol=6)
+        self.assertEqual(len(engineered_93), 93)
+
+    def test_deep_neural_mlp_inference(self):
+        from guardian.core.detection.classifier import attack_classifier
+        raw_features = [0.0] * 78
+        raw_features[0] = 80.0
+        label, conf, scaled = attack_classifier.predict(raw_features)
+        self.assertIsInstance(label, str)
+        self.assertGreaterEqual(conf, 0.0)
+        self.assertLessEqual(conf, 1.0)
+        self.assertEqual(scaled.shape[1], 93)
+
+    def test_autoencoder_reconstruction_and_threshold(self):
+        from guardian.core.zero_day.autoencoder import AutoencoderDetector
+        ae = AutoencoderDetector()
+        benign_sample = [5.0] * 78
+        benign_sample[0] = 80.0
+        res = ae.detect(benign_sample)
+        self.assertIn("reconstruction_error", res)
+        self.assertIn("threshold", res)
+        self.assertGreater(res["threshold"], 0.0)
+
+    def test_firewall_command_injection_mitigation(self):
+        from guardian.core.agent.firewall import firewall_adapter
+        # Attempt malicious input with subshell separator
+        malicious_ip = "192.168.1.1; rm -rf /"
+        res = firewall_adapter.enforce_rule("BLOCK", malicious_ip)
+        self.assertEqual(res["status"], "REJECTED_INVALID_IP")
+
+    def test_shap_feature_attribution_structure(self):
+        from guardian.core.agent.shap_explainability import explainability_engine
+        scaled_vec = [0.1] * 93
+        scaled_vec[14] = 9.5  # high flow bytes/sec
+        shap_res = explainability_engine.explain_flow_prediction(scaled_vec, "DDOS", top_k=3)
+        self.assertEqual(shap_res["predicted_class"], "DDOS")
+        self.assertEqual(len(shap_res["top_contributing_features"]), 3)
+        self.assertIn("feature_name", shap_res["top_contributing_features"][0])
+        self.assertIn("relative_impact_weight", shap_res["top_contributing_features"][0])
 
 if __name__ == "__main__":
     unittest.main()

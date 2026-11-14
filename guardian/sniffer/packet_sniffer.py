@@ -17,6 +17,8 @@ class LivePacketSniffer:
     def __init__(self, interface: Optional[str] = None):
         self.interface = interface
         self.is_running = False
+        self.capture_mode = "STOPPED"  # One of: LIVE, SIMULATED, STARTING, STOPPED, ERROR
+        self.error_reason: Optional[str] = None
         self._thread: Optional[threading.Thread] = None
 
         self.flows: Dict[str, BidirectionalFlow] = {}
@@ -27,20 +29,24 @@ class LivePacketSniffer:
         self.flows_completed = 0
         self.on_flow_complete_callback: Optional[Callable] = None
 
-    def start(self, callback: Optional[Callable] = None):
+    def start(self, callback: Optional[Callable] = None, allow_simulation: bool = False):
         """
         Starts live capture thread.
+        Explicitly distinguishes between LIVE, SIMULATED, and ERROR states.
         """
         if self.is_running:
             return
 
         self.is_running = True
+        self.capture_mode = "STARTING"
+        self.error_reason = None
         self.on_flow_complete_callback = callback
-        self._thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self._thread = threading.Thread(target=self._capture_loop, args=(allow_simulation,), daemon=True)
         self._thread.start()
 
     def stop(self):
         self.is_running = False
+        self.capture_mode = "STOPPED"
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
 
@@ -116,17 +122,19 @@ class LivePacketSniffer:
             for k in stale_keys:
                 self._flush_flow(k)
 
-    def _capture_loop(self):
+    def _capture_loop(self, allow_simulation: bool = False):
         """
-        Attempts scapy sniffing; falls back to synthetic live traffic flow generator
-        if raw socket access is restricted on Windows host.
+        Attempts real Scapy live packet sniffing.
+        If live capture fails, explicitly transitions to ERROR or SIMULATED (only if authorized).
         """
         use_scapy = False
+        scapy_error = None
         try:
             from scapy.all import sniff, IP, TCP, UDP
             use_scapy = True
-        except Exception:
+        except Exception as e:
             use_scapy = False
+            scapy_error = str(e)
 
         if use_scapy:
             def scapy_pkt_handler(pkt):
@@ -165,6 +173,7 @@ class LivePacketSniffer:
                     pass
 
             try:
+                self.capture_mode = "LIVE"
                 sniff(
                     iface=self.interface,
                     prn=scapy_pkt_handler,
@@ -173,10 +182,22 @@ class LivePacketSniffer:
                     timeout=1.0
                 )
                 return
-            except Exception:
-                pass  # Fall through to socket simulation loop
+            except Exception as e:
+                scapy_error = str(e)
 
-        # Safe fallback packet loop (Generates realistic live socket flows)
+        # Handle failure: Do not silently simulate unless explicitly allowed!
+        if not allow_simulation:
+            self.is_running = False
+            self.capture_mode = "ERROR"
+            self.error_reason = (
+                f"Live packet capture failed: {scapy_error}. "
+                "Ensure Npcap is installed on Windows and terminal has administrator privileges."
+            )
+            return
+
+        # Explicit Authorized Simulation Loop
+        self.capture_mode = "SIMULATED"
+        self.error_reason = f"Authorized simulation fallback active (Live error: {scapy_error})"
         import random
         while self.is_running:
             self._clean_stale_flows()

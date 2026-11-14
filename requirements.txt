@@ -18,9 +18,15 @@ scipy>=1.14.0
 scikit-learn>=1.5.0
 joblib>=1.4.0
 
-# Deep Learning (TensorFlow / Keras for Autoencoder)
-# Note: System has dynamic fallback if TF is installed later or running in lightweight mode
-tensorflow>=2.17.0; sys_platform != 'darwin' or platform_machine != 'arm64'
+# Deep Learning (TensorFlow / Keras for Neural MLP, 1D-CNN, and Autoencoder)
+tensorflow-cpu>=2.15.0; sys_platform != 'darwin' or platform_machine != 'arm64'
+
+# Research, Imbalance, Optimization & Explainability
+imbalanced-learn>=0.12.0
+optuna>=4.0.0
+shap>=0.46.0
+pyarrow>=17.0.0
+httpx>=0.28.0
 
 # Network Sniffing & Flow Reconstruction
 scapy>=2.6.0

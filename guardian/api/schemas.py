@@ -40,12 +40,22 @@ class ThreatPredictionResponse(BaseModel):
     firewall_action: Dict[str, Any]
     explanation: str
     recommendation: str
+    feature_attribution: Optional[Dict[str, Any]] = None
+
+class ModelInfoResponse(BaseModel):
+    engine_type: str
+    framework: str
+    input_dim: int
+    status: str
 
 class SnifferStartRequest(BaseModel):
     interface: Optional[str] = Field(default=None, description="Network interface name (e.g., 'Wi-Fi', 'Ethernet')")
+    allow_simulation: bool = Field(default=False, description="Authorize simulation fallback if raw socket access is unprivileged")
 
 class SnifferStatusResponse(BaseModel):
     is_running: bool
+    capture_mode: str = Field(default="STOPPED", description="Explicit state: LIVE, SIMULATED, STARTING, STOPPED, ERROR")
+    error_reason: Optional[str] = None
     interface: str
     packets_captured: int
     flows_completed: int

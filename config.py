@@ -24,6 +24,8 @@ RECONSTRUCTION_THRESHOLD_PATH = MODELS_DIR / "reconstruction_threshold.pkl"
 ISOLATION_FOREST_PATH = MODELS_DIR / "isolation_forest.pkl"
 ONE_CLASS_SVM_PATH = MODELS_DIR / "one_class_svm.pkl"
 SUPERVISED_MODEL_PATH = MODELS_DIR / "ids_classifier.pkl"
+NEURAL_MLP_PATH = MODELS_DIR / "neural_mlp.keras"
+CNN_1D_PATH = MODELS_DIR / "cnn_1d.keras"
 SCALER_PATH = PROCESSED_DATA_DIR / "scaler.pkl"
 LABEL_ENCODER_PATH = PROCESSED_DATA_DIR / "label_encoder.pkl"
 

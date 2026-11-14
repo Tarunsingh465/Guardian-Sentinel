@@ -25,6 +25,8 @@ from config import (
     ISOLATION_FOREST_PATH,
     ONE_CLASS_SVM_PATH,
     SUPERVISED_MODEL_PATH,
+    NEURAL_MLP_PATH,
+    CNN_1D_PATH,
     SCALER_PATH,
     LABEL_ENCODER_PATH,
     CICIDS_FEATURE_COUNT
@@ -99,68 +101,97 @@ def train_pipeline(data_path: str = None):
     benign_idx = np.where(y == "BENIGN")[0]
     X_benign_scaled = X_scaled[benign_idx]
 
-    # 3. Train Supervised Classifier (Random Forest / MLP)
-    print("\n--- [2/5] Training Supervised Attack Classifier ---")
+    # 3. Train Supervised Classifier (Random Forest Baseline)
+    print("\n--- [3/7] Training Supervised Classical Classifier (Random Forest) ---")
     clf = RandomForestClassifier(n_estimators=100, max_depth=16, random_state=42, n_jobs=-1)
     clf.fit(X_scaled, y_encoded)
     joblib.dump(clf, SUPERVISED_MODEL_PATH)
-    print(f"✅ Classifier trained & saved to {SUPERVISED_MODEL_PATH}")
+    print(f"✅ Random Forest Classifier trained & saved to {SUPERVISED_MODEL_PATH}")
 
-    # 4. Train Isolation Forest (Trained on Benign)
-    print("\n--- [3/5] Training Isolation Forest Anomaly Detector ---")
+    # 4. Check for TensorFlow and Train Deep Learning Architectures
+    has_tf = False
+    try:
+        import tensorflow as tf
+        from tensorflow.keras.utils import to_categorical
+        has_tf = True
+    except ImportError:
+        has_tf = False
+
+    num_classes = len(encoder.classes_)
+    y_cat = to_categorical(y_encoded, num_classes=num_classes) if has_tf else None
+
+    # Model A: Deep Neural MLP
+    if has_tf:
+        print("\n--- [4/7] Training Model A: Deep Multilayer Perceptron (MLP) Classifier ---")
+        from guardian.core.detection.neural_mlp import create_mlp_model, get_training_callbacks
+        input_dim = X_scaled.shape[1]
+        mlp = create_mlp_model(input_dim=input_dim, num_classes=num_classes)
+        callbacks = [
+            tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=4, restore_best_weights=True)
+        ]
+        mlp.fit(
+            X_scaled, y_cat,
+            epochs=15,
+            batch_size=64,
+            validation_split=0.15,
+            callbacks=callbacks,
+            verbose=1
+        )
+        mlp.save(str(NEURAL_MLP_PATH))
+        print(f"✅ Deep Neural MLP trained & saved to {NEURAL_MLP_PATH}")
+
+        # Model B: 1D-CNN
+        print("\n--- [5/7] Training Model B: 1D Convolutional Neural Network (CNN) ---")
+        from guardian.core.detection.cnn_1d import create_1d_cnn_model
+        cnn = create_1d_cnn_model(input_dim=input_dim, num_classes=num_classes)
+        X_cnn = X_scaled.reshape(X_scaled.shape[0], X_scaled.shape[1], 1)
+        cnn.fit(
+            X_cnn, y_cat,
+            epochs=10,
+            batch_size=64,
+            validation_split=0.15,
+            callbacks=[tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)],
+            verbose=1
+        )
+        cnn.save(str(CNN_1D_PATH))
+        print(f"✅ 1D-CNN trained & saved to {CNN_1D_PATH}")
+
+    # 5. Train Isolation Forest (Trained on Benign)
+    print("\n--- [6/7] Training Isolation Forest Anomaly Detector ---")
     iso = IsolationForest(n_estimators=100, contamination=0.05, random_state=42, n_jobs=-1)
     iso.fit(X_benign_scaled)
     joblib.dump(iso, ISOLATION_FOREST_PATH)
     print(f"✅ Isolation Forest saved to {ISOLATION_FOREST_PATH}")
 
-    # 5. Train One-Class SVM (Trained on Benign subset for fast convergence)
-    print("\n--- [4/5] Training One-Class SVM Novelty Boundary ---")
+    # Train One-Class SVM (Trained on Benign subset for fast convergence)
     svm_subset = X_benign_scaled[:2000]
     oc_svm = OneClassSVM(kernel="rbf", gamma="scale", nu=0.05)
     oc_svm.fit(svm_subset)
     joblib.dump(oc_svm, ONE_CLASS_SVM_PATH)
     print(f"✅ One-Class SVM saved to {ONE_CLASS_SVM_PATH}")
 
-    # 6. Train Deep Autoencoder
-    print("\n--- [5/5] Building & Training Deep Autoencoder ---")
-    has_tf = False
-    try:
-        import tensorflow as tf
-        from tensorflow.keras.models import Model
-        from tensorflow.keras.layers import Input, Dense
-        has_tf = True
-    except ImportError:
-        has_tf = False
-
+    # 6. Train Model C: Deep Keras Autoencoder
+    print("\n--- [7/7] Building & Training Model C: Deep Keras Autoencoder ---")
     if has_tf:
+        from guardian.core.zero_day.keras_autoencoder import create_keras_autoencoder, calibrate_reconstruction_threshold
         input_dim = X_benign_scaled.shape[1]
-        inputs = Input(shape=(input_dim,))
-        x = Dense(64, activation="relu")(inputs)
-        x = Dense(32, activation="relu")(x)
-        latent = Dense(16, activation="relu", name="latent_bottleneck")(x)
-        x = Dense(32, activation="relu")(latent)
-        x = Dense(64, activation="relu")(x)
-        outputs = Dense(input_dim, activation="linear")(x)
-
-        autoencoder = Model(inputs, outputs, name="GuardianAutoencoder")
-        autoencoder.compile(optimizer="adam", loss="mse")
+        autoencoder, _ = create_keras_autoencoder(input_dim=input_dim, latent_dim=8)
         autoencoder.fit(
             X_benign_scaled, X_benign_scaled,
-            epochs=10,
-            batch_size=256,
-            validation_split=0.1,
+            epochs=15,
+            batch_size=128,
+            validation_split=0.15,
+            callbacks=[tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)],
             verbose=1
         )
         autoencoder.save(str(AUTOENCODER_MODEL_PATH))
-        print(f"✅ Deep Autoencoder saved to {AUTOENCODER_MODEL_PATH}")
+        print(f"✅ Deep Keras Autoencoder saved to {AUTOENCODER_MODEL_PATH}")
 
-        # Compute 95th percentile reconstruction threshold
-        reconstructed = autoencoder.predict(X_benign_scaled, batch_size=512, verbose=0)
-        mse_errors = np.mean(np.square(X_benign_scaled - reconstructed), axis=1)
-        threshold_95 = float(np.percentile(mse_errors, 95))
+        # Compute calibrated 95th percentile reconstruction threshold
+        threshold_95 = calibrate_reconstruction_threshold(autoencoder, X_benign_scaled, percentile=95.0)
     else:
         # Fallback to PCA-based subspace projection autoencoder
-        print("TensorFlow not detected in current environment; training PCA reconstruction autoencoder...")
+        print("TensorFlow not detected; training PCA reconstruction autoencoder...")
         from sklearn.decomposition import PCA
         pca = PCA(n_components=16)
         pca.fit(X_benign_scaled)
@@ -173,6 +204,13 @@ def train_pipeline(data_path: str = None):
     joblib.dump(threshold_95, RECONSTRUCTION_THRESHOLD_PATH)
     print(f"✅ Calibrated 95th Percentile Reconstruction Threshold: {threshold_95:.6f}")
     print(f"Saved threshold to {RECONSTRUCTION_THRESHOLD_PATH}")
+
+    # Also maintain PCA fallback artifact for robust test compatibility
+    from sklearn.decomposition import PCA
+    pca = PCA(n_components=16)
+    pca.fit(X_benign_scaled)
+    joblib.dump(pca, MODELS_DIR / "pca_autoencoder.pkl")
+    print(f"✅ Auxiliary PCA Autoencoder saved to {MODELS_DIR / 'pca_autoencoder.pkl'}")
 
     elapsed = time.time() - start_time
     print("\n" + "=" * 60)

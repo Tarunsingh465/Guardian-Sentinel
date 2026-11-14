@@ -13,23 +13,29 @@ class LiveCaptureService:
         self.live_threat_feed: List[Dict[str, Any]] = []
         self.max_feed_size = 200
 
-    def start_capture(self, interface: str = None) -> Dict[str, Any]:
+    def start_capture(self, interface: str = None, allow_simulation: bool = False) -> Dict[str, Any]:
         if live_packet_sniffer.is_running:
-            return {"status": "ALREADY_RUNNING", "interface": live_packet_sniffer.interface}
+            return {
+                "status": "ALREADY_RUNNING",
+                "capture_mode": live_packet_sniffer.capture_mode,
+                "interface": live_packet_sniffer.interface
+            }
 
         live_packet_sniffer.interface = interface
-        live_packet_sniffer.start(callback=self._on_flow_detected)
+        live_packet_sniffer.start(callback=self._on_flow_detected, allow_simulation=allow_simulation)
 
         return {
             "status": "STARTED",
+            "capture_mode": live_packet_sniffer.capture_mode,
             "interface": interface or "DEFAULT",
-            "message": "Live packet capture and bidirectional flow extraction active."
+            "message": "Live packet capture initialized."
         }
 
     def stop_capture(self) -> Dict[str, Any]:
         live_packet_sniffer.stop()
         return {
             "status": "STOPPED",
+            "capture_mode": live_packet_sniffer.capture_mode,
             "packets_captured": live_packet_sniffer.packets_captured,
             "flows_completed": live_packet_sniffer.flows_completed
         }
@@ -61,6 +67,8 @@ class LiveCaptureService:
     def get_status(self) -> Dict[str, Any]:
         return {
             "is_running": live_packet_sniffer.is_running,
+            "capture_mode": live_packet_sniffer.capture_mode,
+            "error_reason": live_packet_sniffer.error_reason,
             "interface": live_packet_sniffer.interface or "Auto-detected",
             "packets_captured": live_packet_sniffer.packets_captured,
             "flows_completed": live_packet_sniffer.flows_completed,

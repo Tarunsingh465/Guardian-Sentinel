@@ -36,8 +36,10 @@ Guardian-Sentinel bridges the gap between theoretical Data Science research and 
 * **Streamlit Cyber SOC Console**: Pure-Python reactive dashboard with real-time incident tables, Plotly telemetry, and interactive controls.
 * **Real-Time Network Sniffing**: Captures inbound/outbound packets on local NIC interfaces (Wi-Fi, Ethernet) and dynamically aggregates them into 78-dimensional bidirectional flows.
 * **Unsupervised Zero-Day Consensus**: Ensembles a Deep Autoencoder (MSE reconstruction thresholded at the $95^{\text{th}}$ percentile), Isolation Forest, and One-Class SVM to quarantine unknown exploits.
-* **Autonomous AI Agent**: Stateful IP memory, reputation scoring (0–100), dynamic severity tiers, and tiered containment (`ALLOW` $\to$ `MONITOR` $\to$ `TEMP_BAN` $\to$ `BLOCK`) with pluggable firewall rules.
-* **Research Transparency**: Includes 4 detailed research reports (`/reports`) documenting distribution skewness, hypothesis tests, and class imbalance mitigation.
+* **Autonomous AI Agent**: Stateful IP memory, reputation scoring (0–100), dynamic severity tiers, and tiered containment (`ALLOW` $\to$ `MONITOR` $\to$ `TEMP_BAN` $\to$ `BLOCK`) with pluggable firewall rules and command-injection-hardened inputs.
+* **Deep Learning Suite (CPU-Optimized TensorFlow 2.15)**: Model A (Deep MLP 128 $\to$ 64 $\to$ 32), Model B (1D-CNN), Model C (Deep Keras Bottleneck Autoencoder), and Model D (Calibrated Score Fusion).
+* **Automated Hyperparameter Optimization & Resampling**: Optuna 10-trial Bayesian tuning and empirical SMOTE-Tomek memory/generalization benchmarks.
+* **Research Transparency**: Includes 9 comprehensive research reports (`/reports`) documenting dataset provenance, hypothesis testing, EDA skewness, feature engineering (78 $\to$ 93 dims), class imbalance, Optuna HPO, and SHAP explainability.
 
 ---
 
@@ -203,18 +205,24 @@ Guardian-Sentinel/
 ├── guardian/                      # Core Production Package
 │   ├── api/                       # FastAPI Microservice Backend
 │   │   ├── main.py                # App entrypoint & CORS middleware
-│   │   ├── routes.py              # REST API endpoints (/predict, /sniffer, /threats)
+│   │   ├── routes.py              # REST API endpoints (/predict, /sniffer, /threats, /model/info)
 │   │   ├── schemas.py             # Pydantic v2 data contracts
 │   │   └── database.py            # SQLite / SQLAlchemy persistence
 │   │
 │   ├── core/                      # Detection & AI Agent Logic
 │   │   ├── detection/             # Multi-class Supervised Classifiers
-│   │   │   └── classifier.py
+│   │   │   ├── classifier.py      # Unified inference controller
+│   │   │   ├── neural_mlp.py      # Model A: Deep MLP (128->64->32)
+│   │   │   ├── cnn_1d.py          # Model B: 1D-CNN Conv1D
+│   │   │   └── neural_hybrid.py   # Model D: Calibrated score fusion
 │   │   ├── zero_day/              # Unsupervised Zero-Day Anomaly Detection
+│   │   │   ├── keras_autoencoder.py # Model C: Deep Keras bottleneck
 │   │   │   ├── autoencoder.py     # Reconstruction MSE thresholding
 │   │   │   ├── isolation_forest.py# Tree-based path length isolation
 │   │   │   ├── one_class_svm.py   # RBF max-margin boundary
 │   │   │   └── hybrid_engine.py   # 3-Model consensus voting chamber
+│   │   ├── features/              # Feature Engineering & Encoding
+│   │   │   └── engineer.py        # 78 -> 93 dimension transformer (OHE & ratios)
 │   │   └── agent/                 # Autonomous Security Operations
 │   │       ├── security_agent.py  # Master pipeline coordinator
 │   │       ├── normalizer.py      # Standardized attack taxonomy
@@ -222,30 +230,39 @@ Guardian-Sentinel/
 │   │       ├── memory.py          # Stateful IP attack history
 │   │       ├── reputation.py      # Attacker trust calculation (0-100)
 │   │       ├── containment.py     # Automated playbook engine
-│   │       ├── firewall.py        # OS firewall adapter (netsh/iptables)
-│   │       └── explainability.py  # SOC incident triage rationales
+│   │       ├── firewall.py        # Hardened OS firewall adapter (netsh/iptables)
+│   │       ├── explainability.py  # Rule-based incident triage rationales
+│   │       └── shap_explainability.py # Local feature attribution (TreeSHAP)
 │   │
 │   ├── sniffer/                   # Real-Time Network Packet Ingestion
 │   │   ├── flow_engine.py         # Bidirectional 78-feature extractor
-│   │   ├── packet_sniffer.py      # Live packet capture listener
+│   │   ├── packet_sniffer.py      # Live packet capture listener with status tracking
 │   │   └── live_capture.py        # Background thread & flow dispatcher
 │   │
 │   └── dashboard/                 # Streamlit SOC Analyst Console
-│       └── app.py                 # Multi-tab interactive UI
+│       └── app.py                 # Multi-tab interactive UI & Research Hub
 │
 ├── research/                      # Executable Research & Testing Engines
 │   ├── statistical_testing.py     # Hypothesis testing (KS, U, t, Chi2)
 │   ├── eda_engine.py              # Advanced EDA & multicollinearity VIF
-│   └── imbalance_benchmark.py     # Class imbalance & Focal Loss evaluation
+│   ├── imbalance_benchmark.py     # Class imbalance & Focal Loss evaluation
+│   ├── smote_tomek_experiment.py  # SMOTE-Tomek boundary resampling vs weighting
+│   ├── optuna_tuning.py           # Bayesian HPO under 8GB RAM constraints
+│   └── temporal_sequence_experiment.py # Chronological session sequence study
 │
 ├── reports/                       # Formal Research Documentation
+│   ├── 00_REPOSITORY_AUDIT_AND_FEATURE_INVENTORY.md
 │   ├── 01_ADVANCED_EDA_REPORT.md
 │   ├── 02_HYPOTHESIS_TESTING_REPORT.md
 │   ├── 03_CLASS_IMBALANCE_STUDY.md
-│   └── 04_MODEL_ABLATION_AND_BENCHMARK.md
+│   ├── 04_MODEL_ABLATION_AND_BENCHMARK.md
+│   ├── 05_FEATURE_ENGINEERING_REPORT.md
+│   ├── 06_RESEARCH_LITERATURE_REVIEW.md
+│   ├── 07_DATASET_PROVENANCE_AND_INGESTION.md
+│   └── 08_EXPLAINABILITY_AND_ERROR_ANALYSIS.md
 │
 ├── models/                        # Pre-trained weights (.keras, .pkl)
-└── data/                          # CIC-IDS2017 datasets & preprocessed numpy dumps
+└── data/                          # Provenance ingestion & preprocessed artifacts
 ```
 
 ---

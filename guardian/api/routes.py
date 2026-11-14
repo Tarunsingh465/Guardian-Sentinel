@@ -11,7 +11,8 @@ from guardian.api.schemas import (
     BatchFlowInput,
     ThreatPredictionResponse,
     SnifferStartRequest,
-    SnifferStatusResponse
+    SnifferStatusResponse,
+    ModelInfoResponse
 )
 from guardian.api.database import get_db, DBTrafficLog
 from guardian.core.agent.security_agent import analyze_network_flow
@@ -83,7 +84,7 @@ def start_live_sniffer(req: SnifferStartRequest = SnifferStartRequest()):
     """
     Starts live inbound & outbound packet capture and real-time flow detection.
     """
-    return live_capture_service.start_capture(interface=req.interface)
+    return live_capture_service.start_capture(interface=req.interface, allow_simulation=req.allow_simulation)
 
 @router.post("/sniffer/stop")
 def stop_live_sniffer():
@@ -154,3 +155,11 @@ def get_threat_memory():
     Retrieves stateful IP reputation and attack profiles.
     """
     return threat_memory.get_all_offenders()
+
+@router.get("/model/info", response_model=ModelInfoResponse)
+def get_detection_model_info():
+    """
+    Retrieves metadata about active Deep Learning and anomaly detection architectures.
+    """
+    from guardian.core.detection.classifier import attack_classifier
+    return attack_classifier.get_model_info()
