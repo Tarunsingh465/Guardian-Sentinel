@@ -52,10 +52,8 @@ class AutoencoderDetector:
         if sample_vec.shape[1] == 78:
             from guardian.core.features.engineer import feature_engineer
             sample_vec = feature_engineer.transform_single_flow(sample_vec[0]).reshape(1, -1)
-
-        # Scale features if raw
-        if self.scaler is not None and float(np.abs(sample_vec).max()) > 10.0:
-            sample_vec = self.scaler.transform(sample_vec)
+            if self.scaler is not None:
+                sample_vec = self.scaler.transform(sample_vec)
 
         if self.model is not None:
             reconstructed = self.model.predict(sample_vec, verbose=0)

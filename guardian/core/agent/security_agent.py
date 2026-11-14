@@ -38,13 +38,32 @@ def analyze_network_flow(
     # 2. Unsupervised Zero-Day Anomaly Detection
     zero_day_analysis = hybrid_zero_day_engine.analyze(scaled_vec)
 
-    # 3. Decision Fusion & Label Escalation
-    is_zero_day = zero_day_analysis["is_zero_day"] or zero_day_analysis["final_status"] in ["HIGH_ANOMALY", "POTENTIAL_ZERO_DAY"]
+    # 3. Intelligent Decision Fusion & Zero-Day Escalation
+    recon_err = zero_day_analysis["reconstruction_error"]
+    ae_thresh = zero_day_analysis["threshold"]
+    is_unanimous_anomaly = (zero_day_analysis["anomaly_votes"] >= 3)
+    is_extreme_recon_anomaly = (recon_err > ae_thresh * 2.5)
+
+    is_zero_day = False
     final_attack_label = predicted_attack
 
-    if is_zero_day and predicted_attack == "BENIGN":
-        final_attack_label = zero_day_analysis["final_status"]
-        confidence = 0.95
+    if predicted_attack == "BENIGN":
+        if confidence < 0.85 and (is_unanimous_anomaly or is_extreme_recon_anomaly):
+            # Ambiguous or stealth exploit
+            is_zero_day = True
+            final_attack_label = "POTENTIAL_ZERO_DAY"
+            confidence = 0.90
+        elif is_extreme_recon_anomaly and is_unanimous_anomaly:
+            # Catastrophic out-of-distribution shift (genuine zero-day exploit)
+            is_zero_day = True
+            final_attack_label = "POTENTIAL_ZERO_DAY"
+            confidence = 0.95
+        else:
+            # Confirmed Benign
+            final_attack_label = "BENIGN"
+    else:
+        # Known attack signature
+        final_attack_label = predicted_attack
 
     # 4. Update Stateful Attacker Memory
     mem_profile = threat_memory.update_attacker_memory(source_ip, final_attack_label)

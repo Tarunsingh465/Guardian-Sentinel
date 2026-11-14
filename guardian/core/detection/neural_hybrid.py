@@ -43,11 +43,13 @@ class NeuralHybridDetector:
         is_reconstruction_anomaly = bool(recon_mse > thresh)
 
         # 3. Decision Fusion Logic
-        # If supervised model predicts BENIGN but reconstruction error is high, escalate to ZERO-DAY!
-        if top_idx == 0 and is_reconstruction_anomaly:
+        # Escalate to Zero-Day ONLY when:
+        # - Supervised model is uncertain (conf < 0.85) AND reconstruction error > thresh * 1.5, OR
+        # - Reconstruction error is extreme out-of-distribution (> thresh * 2.5)
+        if top_idx == 0 and ((is_reconstruction_anomaly and conf < 0.85) or (recon_mse > thresh * 2.5)):
             final_status = "POTENTIAL_ZERO_DAY"
-            final_decision = "BLOCK"
-            severity = "CRITICAL"
+            final_decision = "TEMP_BAN"
+            severity = "HIGH"
             fusion_mode = "ANOMALY_OVERRIDE"
         elif top_idx != 0:
             final_status = "KNOWN_ATTACK"

@@ -22,6 +22,11 @@ class ContainmentEngine:
         Returns (decision, containment_level, ban_duration_minutes)
         Decisions: ALLOW, MONITOR, TEMP_BAN, BLOCK, CRITICAL_ALERT
         """
+        # Whitelist protection for local/gateway and DNS infrastructure
+        whitelist = {"127.0.0.1", "::1", "localhost", "10.0.0.1", "192.168.1.1", "8.8.8.8", "1.1.1.1"}
+        if ip_address in whitelist:
+            return "ALLOW", "WHITELISTED", 0
+
         # Check existing active ban
         if ip_address in self.active_bans:
             ban_info = self.active_bans[ip_address]
@@ -30,19 +35,19 @@ class ContainmentEngine:
             else:
                 del self.active_bans[ip_address]
 
-        if severity == "LOW" and reputation > 80:
+        if severity == "LOW" and reputation > 75:
             return "ALLOW", "NO_CONTAINMENT", 0
 
-        if is_zero_day or severity == "CRITICAL" or reputation < 25:
-            # Immediate block or temporary ban escalation
-            if attack_count >= 2 or is_zero_day:
-                duration = 120  # 2 hours
-                self._apply_ban(ip_address, duration, "CRITICAL threat / Zero-Day heuristic")
+        if is_zero_day or severity == "CRITICAL":
+            # Multi-stage containment: First offense gets temporary probation ban (5 min), repeat offenses get hard block (60 min)
+            if attack_count >= 2:
+                duration = 60  # 1 hour
+                self._apply_ban(ip_address, duration, "Confirmed repeat Zero-Day / Critical exploit")
                 return "BLOCK", "CRITICAL_CONTAINMENT", duration
             else:
-                duration = 30
-                self._apply_ban(ip_address, duration, "Severe initial threat")
-                return "TEMP_BAN", "HIGH_CONTAINMENT", duration
+                duration = 5   # 5 minutes probation
+                self._apply_ban(ip_address, duration, "Probationary isolation for novel zero-day anomaly")
+                return "TEMP_BAN", "PROBATION_CONTAINMENT", duration
 
         if severity == "HIGH" or attack_count >= 3:
             duration = 15
