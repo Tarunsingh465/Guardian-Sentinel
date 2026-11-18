@@ -45,8 +45,8 @@ class NeuralHybridDetector:
         # 3. Decision Fusion Logic
         # Escalate to Zero-Day ONLY when:
         # - Supervised model is uncertain (conf < 0.85) AND reconstruction error > thresh * 1.5, OR
-        # - Reconstruction error is extreme out-of-distribution (> thresh * 2.5)
-        if top_idx == 0 and ((is_reconstruction_anomaly and conf < 0.85) or (recon_mse > thresh * 2.5)):
+        # - Reconstruction error is extreme out-of-distribution (> thresh * 3.0)
+        if top_idx == 0 and ((is_reconstruction_anomaly and conf < 0.85) or (recon_mse > thresh * 3.0)):
             final_status = "POTENTIAL_ZERO_DAY"
             final_decision = "TEMP_BAN"
             severity = "HIGH"

@@ -49,18 +49,19 @@ class AttackClassifier:
 
     def get_model_info(self) -> Dict[str, Any]:
         """Returns metadata about the active detection engine."""
+        dim = getattr(self.scaler, "n_features_in_", 80) if self.scaler is not None else 80
         if self.neural_model is not None:
             return {
                 "engine_type": "DEEP_NEURAL_MLP",
                 "framework": "TensorFlow / Keras CPU",
-                "input_dim": 93,
+                "input_dim": dim,
                 "status": "ACTIVE_PRIMARY"
             }
         elif self.model is not None:
             return {
                 "engine_type": "RANDOM_FOREST_ENSEMBLE",
                 "framework": "Scikit-Learn",
-                "input_dim": 93,
+                "input_dim": dim,
                 "status": "ACTIVE_FALLBACK"
             }
         else:

@@ -1,6 +1,6 @@
 """
 Guardian-Sentinel Model C: Deep Keras Autoencoder for Zero-Day Anomaly Hunting
-Undercomplete bottleneck architecture (93 -> 64 -> 32 -> 16 -> 8 -> 16 -> 32 -> 64 -> 93)
+Undercomplete bottleneck architecture (80 -> 64 -> 32 -> 16 -> 8 -> 16 -> 32 -> 64 -> 80)
 Trained strictly on Benign traffic. Reconstruction Mean Squared Error (MSE) measures out-of-distribution distance.
 """
 
@@ -11,7 +11,7 @@ import numpy as np
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-def create_keras_autoencoder(input_dim: int = 93, latent_dim: int = 8):
+def create_keras_autoencoder(input_dim: int = 80, latent_dim: int = 8):
     """
     Constructs Encoder, Decoder, and Autoencoder models using Keras Functional API.
     """

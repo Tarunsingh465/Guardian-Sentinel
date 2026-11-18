@@ -5,7 +5,7 @@ Implements:
 2. Non-linear log1p transformations for heavy-tailed flow attributes.
 3. Domain-specific Cyber Flow Ratios (Asymmetry, Header-to-Payload, Bytes/Pkt).
 4. Composite TCP Attack Flag signatures (SYN flood probes, XMAS scans, NULL scans).
-5. Collinear duplicate leakage pruning.
+5. Pruning 18 Unused Zero-Variance & Collinear Duplicate Columns (78 -> 80 clean features).
 6. Target One-Hot Encoding (OHE) for Neural Network loss functions.
 """
 
@@ -147,17 +147,25 @@ class NetworkFeatureEngineer:
                 X_transformed[:, col_idx] = np.log1p(np.clip(X_transformed[:, col_idx], 0, 1e12))
 
         # ----------------------------------------------------
-        # 5. PRUNING COLLINEAR LEAKAGE COLUMNS
-        # Drop Subflow duplicates identified in Research EDA Report #1:
-        # Col 55 (Fwd Header Length.1), 62 (Subflow Fwd Pkts), 63 (Subflow Fwd Bytes),
-        # 64 (Subflow Bwd Pkts), 65 (Subflow Bwd Bytes)
+        # 5. PRUNING UNUSED, ZERO-VARIANCE & COLLINEAR LEAKAGE COLUMNS
+        # Drops 18 uninformative / redundant columns out of 78:
+        # Zero-Variance (11 cols):
+        #   31 (Bwd PSH Flags), 32 (Fwd URG Flags), 33 (Bwd URG Flags),
+        #   49 (CWR Flag Count), 50 (ECE Flag Count), 56 (Fwd Avg Bytes/Bulk),
+        #   57 (Fwd Avg Packets/Bulk), 58 (Fwd Avg Bulk Rate), 59 (Bwd Avg Bytes/Bulk),
+        #   60 (Bwd Avg Packets/Bulk), 61 (Bwd Avg Bulk Rate)
+        # Exact Collinear Duplicates (7 cols):
+        #   53 (Avg Fwd Segment Size == col 8), 54 (Avg Bwd Segment Size == col 12),
+        #   55 (Fwd Header Length.1 == col 34), 62 (Subflow Fwd Pkts == col 2),
+        #   63 (Subflow Fwd Bytes == col 4), 64 (Subflow Bwd Pkts == col 3),
+        #   65 (Subflow Bwd Bytes == col 5)
         # ----------------------------------------------------
-        drop_indices = [55, 62, 63, 64, 65]
+        drop_indices = [31, 32, 33, 49, 50, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65]
         keep_indices = [i for i in range(X_transformed.shape[1]) if i not in drop_indices]
         X_pruned = X_transformed[:, keep_indices]
 
         # ----------------------------------------------------
-        # 6. ASSEMBLE FULL ENGINEERED FEATURE MATRIX
+        # 6. ASSEMBLE FULL ENGINEERED FEATURE MATRIX (60 + 10 + 10 = 80 DIMS)
         # ----------------------------------------------------
         final_features = np.hstack([
             X_pruned,

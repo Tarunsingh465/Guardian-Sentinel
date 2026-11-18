@@ -72,8 +72,8 @@ class TestGuardianPipeline(unittest.TestCase):
         from guardian.core.features.engineer import feature_engineer
         raw_78 = [1.0] * 78
         raw_78[0] = 80.0  # HTTP port
-        engineered_93 = feature_engineer.transform_single_flow(raw_78, protocol=6)
-        self.assertEqual(len(engineered_93), 93)
+        engineered_80 = feature_engineer.transform_single_flow(raw_78, protocol=6)
+        self.assertEqual(len(engineered_80), 80)
 
     def test_deep_neural_mlp_inference(self):
         from guardian.core.detection.classifier import attack_classifier
@@ -83,7 +83,7 @@ class TestGuardianPipeline(unittest.TestCase):
         self.assertIsInstance(label, str)
         self.assertGreaterEqual(conf, 0.0)
         self.assertLessEqual(conf, 1.0)
-        self.assertEqual(scaled.shape[1], 93)
+        self.assertEqual(scaled.shape[1], 80)
 
     def test_autoencoder_reconstruction_and_threshold(self):
         from guardian.core.zero_day.autoencoder import AutoencoderDetector
@@ -104,7 +104,7 @@ class TestGuardianPipeline(unittest.TestCase):
 
     def test_shap_feature_attribution_structure(self):
         from guardian.core.agent.shap_explainability import explainability_engine
-        scaled_vec = [0.1] * 93
+        scaled_vec = [0.1] * 80
         scaled_vec[14] = 9.5  # high flow bytes/sec
         shap_res = explainability_engine.explain_flow_prediction(scaled_vec, "DDOS", top_k=3)
         self.assertEqual(shap_res["predicted_class"], "DDOS")

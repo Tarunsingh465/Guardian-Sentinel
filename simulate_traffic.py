@@ -75,6 +75,21 @@ def generate_sample_flow(attack_type: str = "BENIGN") -> List[float]:
         features[15] = float(1.0 / dur_sec)
         features[44] = 1.0  # SYN
         features[47] = 0.0
+    elif attack_type in ["SSH_BRUTE_FORCE", "BRUTEFORCE_SSH"]:
+        duration = random.uniform(20000, 300000)
+        dur_sec = duration / 1e6
+        fwd_p = random.randint(25, 120)
+        bwd_p = random.randint(20, 100)
+        features[0] = 22.0  # Port 22 SSH
+        features[1] = duration
+        features[2] = float(fwd_p)
+        features[3] = float(bwd_p)
+        features[4] = float(fwd_p * 70)
+        features[5] = float(bwd_p * 80)
+        features[14] = float((features[4] + features[5]) / dur_sec)
+        features[15] = float((fwd_p + bwd_p) / dur_sec)
+        features[46] = 1.0  # PSH flag
+        features[47] = 1.0  # ACK flag
     elif attack_type == "ZERO_DAY":
         # Massive out-of-distribution feature corruption across 30 dimensions
         for i in range(10, 40):

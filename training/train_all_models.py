@@ -98,6 +98,7 @@ def generate_calibrated_training_data(n_samples: int = 15000):
 
     # 2. Attack flows
     X_attack = np.zeros((n_attack, CICIDS_FEATURE_COUNT), dtype=np.float32)
+    X_attack += np.random.uniform(0.1, 5.0, size=(n_attack, CICIDS_FEATURE_COUNT)).astype(np.float32)
     attack_labels = []
 
     n_ddos = n_attack // 3
@@ -105,13 +106,16 @@ def generate_calibrated_training_data(n_samples: int = 15000):
     n_bruteforce = n_attack - n_ddos - n_portscan
 
     # DDoS attacks: massive packet rate, high bytes/s, SYN spikes
-    X_attack[:n_ddos, 0] = np.random.choice([80.0, 443.0], size=n_ddos)
+    X_attack[:n_ddos, 0] = np.random.choice([80.0, 443.0, 8080.0], size=n_ddos)
     X_attack[:n_ddos, 1] = np.random.uniform(50.0, 2000.0, size=n_ddos)
     ddos_pkts = np.random.uniform(400.0, 3000.0, size=n_ddos)
     X_attack[:n_ddos, 2] = ddos_pkts
     X_attack[:n_ddos, 3] = 0.0
-    X_attack[:n_ddos, 14] = np.random.uniform(3000000.0, 30000000.0, size=n_ddos)
-    X_attack[:n_ddos, 15] = np.random.uniform(10000.0, 100000.0, size=n_ddos)
+    X_attack[:n_ddos, 4] = ddos_pkts * 60.0
+    X_attack[:n_ddos, 5] = 0.0
+    ddos_dur_sec = np.maximum(X_attack[:n_ddos, 1] / 1e6, 0.0001)
+    X_attack[:n_ddos, 14] = (ddos_pkts * 60.0) / ddos_dur_sec
+    X_attack[:n_ddos, 15] = ddos_pkts / ddos_dur_sec
     X_attack[:n_ddos, 44] = 1.0  # SYN flag
     X_attack[:n_ddos, 47] = 0.0  # No ACK
     attack_labels.extend(["DDOS"] * n_ddos)
@@ -122,17 +126,30 @@ def generate_calibrated_training_data(n_samples: int = 15000):
     X_attack[idx_p:idx_p + n_portscan, 1] = np.random.uniform(10.0, 200.0, size=n_portscan)
     X_attack[idx_p:idx_p + n_portscan, 2] = 1.0
     X_attack[idx_p:idx_p + n_portscan, 3] = 0.0
-    X_attack[idx_p:idx_p + n_portscan, 14] = np.random.uniform(40.0, 200.0, size=n_portscan)
+    X_attack[idx_p:idx_p + n_portscan, 4] = 40.0
+    X_attack[idx_p:idx_p + n_portscan, 5] = 0.0
+    ps_dur_sec = np.maximum(X_attack[idx_p:idx_p + n_portscan, 1] / 1e6, 0.0001)
+    X_attack[idx_p:idx_p + n_portscan, 14] = 40.0 / ps_dur_sec
+    X_attack[idx_p:idx_p + n_portscan, 15] = 1.0 / ps_dur_sec
     X_attack[idx_p:idx_p + n_portscan, 44] = 1.0  # SYN flag
+    X_attack[idx_p:idx_p + n_portscan, 47] = 0.0  # No ACK
     attack_labels.extend(["PORTSCAN"] * n_portscan)
 
     # BruteForce SSH/FTP attacks
     idx_b = n_ddos + n_portscan
-    X_attack[idx_b:, 0] = np.random.choice([22.0, 21.0], size=n_bruteforce)
-    X_attack[idx_b:, 1] = np.random.uniform(10000.0, 500000.0, size=n_bruteforce)
-    X_attack[idx_b:, 2] = np.random.randint(25, 120, size=n_bruteforce).astype(np.float32)
-    X_attack[idx_b:, 3] = np.random.randint(20, 100, size=n_bruteforce).astype(np.float32)
+    X_attack[idx_b:, 0] = 22.0
+    X_attack[idx_b:, 1] = np.random.uniform(20000.0, 300000.0, size=n_bruteforce)
+    ssh_fwd = np.random.randint(25, 120, size=n_bruteforce).astype(np.float32)
+    ssh_bwd = np.random.randint(20, 100, size=n_bruteforce).astype(np.float32)
+    X_attack[idx_b:, 2] = ssh_fwd
+    X_attack[idx_b:, 3] = ssh_bwd
+    X_attack[idx_b:, 4] = ssh_fwd * 70.0
+    X_attack[idx_b:, 5] = ssh_bwd * 80.0
+    ssh_dur_sec = np.maximum(X_attack[idx_b:, 1] / 1e6, 0.0001)
+    X_attack[idx_b:, 14] = (X_attack[idx_b:, 4] + X_attack[idx_b:, 5]) / ssh_dur_sec
+    X_attack[idx_b:, 15] = (ssh_fwd + ssh_bwd) / ssh_dur_sec
     X_attack[idx_b:, 46] = 1.0  # PSH flag
+    X_attack[idx_b:, 47] = 1.0  # ACK flag
     attack_labels.extend(["BRUTEFORCE_SSH"] * n_bruteforce)
 
     X = np.vstack([X_benign, X_attack]).astype(np.float32)
@@ -188,9 +205,9 @@ def train_pipeline(data_path: str = None):
     benign_idx = np.where(y == "BENIGN")[0]
     X_benign_scaled = X_scaled[benign_idx]
 
-    # 3. Train Supervised Classifier (Random Forest Baseline)
-    print("\n--- [3/7] Training Supervised Classical Classifier (Random Forest) ---")
-    clf = RandomForestClassifier(n_estimators=100, max_depth=16, random_state=42, n_jobs=-1)
+    # 3. Train Supervised Classifier (Regularized Random Forest Baseline)
+    print("\n--- [3/7] Training Supervised Classical Classifier (Random Forest with Overfitting Prevention) ---")
+    clf = RandomForestClassifier(n_estimators=100, max_depth=12, min_samples_split=6, min_samples_leaf=4, random_state=42, n_jobs=-1)
     clf.fit(X_scaled, y_encoded)
     joblib.dump(clf, SUPERVISED_MODEL_PATH)
     print(f"✅ Random Forest Classifier trained & saved to {SUPERVISED_MODEL_PATH}")
@@ -216,32 +233,38 @@ def train_pipeline(data_path: str = None):
         callbacks = [
             tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=4, restore_best_weights=True)
         ]
-        mlp.fit(
+        history_mlp = mlp.fit(
             X_scaled, y_cat,
             epochs=15,
             batch_size=64,
-            validation_split=0.15,
+            validation_split=0.20,
             callbacks=callbacks,
             verbose=1
         )
         mlp.save(str(NEURAL_MLP_PATH))
+        train_acc = history_mlp.history["accuracy"][-1]
+        val_acc = history_mlp.history["val_accuracy"][-1]
         print(f"✅ Deep Neural MLP trained & saved to {NEURAL_MLP_PATH}")
+        print(f"📊 MLP Overfitting Check -> Train Acc: {train_acc*100:.2f}% | Val Acc: {val_acc*100:.2f}% | Gap: {abs(train_acc-val_acc)*100:.2f}%")
 
         # Model B: 1D-CNN
         print("\n--- [5/7] Training Model B: 1D Convolutional Neural Network (CNN) ---")
         from guardian.core.detection.cnn_1d import create_1d_cnn_model
         cnn = create_1d_cnn_model(input_dim=input_dim, num_classes=num_classes)
         X_cnn = X_scaled.reshape(X_scaled.shape[0], X_scaled.shape[1], 1)
-        cnn.fit(
+        history_cnn = cnn.fit(
             X_cnn, y_cat,
             epochs=10,
             batch_size=64,
-            validation_split=0.15,
+            validation_split=0.20,
             callbacks=[tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)],
             verbose=1
         )
         cnn.save(str(CNN_1D_PATH))
+        c_train_acc = history_cnn.history["accuracy"][-1]
+        c_val_acc = history_cnn.history["val_accuracy"][-1]
         print(f"✅ 1D-CNN trained & saved to {CNN_1D_PATH}")
+        print(f"📊 CNN Overfitting Check -> Train Acc: {c_train_acc*100:.2f}% | Val Acc: {c_val_acc*100:.2f}% | Gap: {abs(c_train_acc-c_val_acc)*100:.2f}%")
 
     # 5. Train Isolation Forest (Trained on Benign with calibrated 1% contamination)
     print("\n--- [6/7] Training Isolation Forest Anomaly Detector ---")
@@ -274,8 +297,8 @@ def train_pipeline(data_path: str = None):
         autoencoder.save(str(AUTOENCODER_MODEL_PATH))
         print(f"✅ Deep Keras Autoencoder saved to {AUTOENCODER_MODEL_PATH}")
 
-        # Compute calibrated 99.5th percentile reconstruction threshold with 1.25x production margin
-        threshold_calibrated = float(calibrate_reconstruction_threshold(autoencoder, X_benign_scaled, percentile=99.5) * 1.25)
+        # Compute calibrated 99.5th percentile reconstruction threshold with 1.35x production margin
+        threshold_calibrated = float(calibrate_reconstruction_threshold(autoencoder, X_benign_scaled, percentile=99.5) * 1.35)
     else:
         # Fallback to PCA-based subspace projection autoencoder
         print("TensorFlow not detected; training PCA reconstruction autoencoder...")
@@ -284,7 +307,7 @@ def train_pipeline(data_path: str = None):
         pca.fit(X_benign_scaled)
         reconstructed = pca.inverse_transform(pca.transform(X_benign_scaled))
         mse_errors = np.mean(np.square(X_benign_scaled - reconstructed), axis=1)
-        threshold_calibrated = float(np.percentile(mse_errors, 99.5) * 1.25)
+        threshold_calibrated = float(np.percentile(mse_errors, 99.5) * 1.35)
         joblib.dump(pca, MODELS_DIR / "pca_autoencoder.pkl")
         print(f"✅ PCA Reconstruction Model saved to {MODELS_DIR / 'pca_autoencoder.pkl'}")
 

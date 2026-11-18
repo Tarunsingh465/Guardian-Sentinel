@@ -93,24 +93,17 @@ sim_attack = st.sidebar.selectbox(
 )
 
 if st.sidebar.button("Inject Simulated Flow"):
-    features = [random.uniform(0.1, 10.0) for _ in range(78)]
+    from simulate_traffic import generate_sample_flow
+    type_map = {
+        "Random Normal Traffic": "BENIGN",
+        "DDoS SYN Flood": "DDOS",
+        "PortScan Recon": "PORTSCAN",
+        "Zero-Day Novel Exploit": "ZERO_DAY",
+        "SSH Brute Force": "SSH_BRUTE_FORCE"
+    }
+    target_type = type_map.get(sim_attack, "BENIGN")
+    features = generate_sample_flow(target_type)
     ip = f"10.0.0.{random.randint(10, 240)}"
-
-    if sim_attack == "DDoS SYN Flood":
-        features[14] = 2500000.0  # High byte rate
-        features[2] = 500.0       # High forward packets
-        features[44] = 1.0        # SYN flag
-    elif sim_attack == "PortScan Recon":
-        features[3] = 0.0         # No backward pkts
-        features[1] = 15.0        # Minimal duration
-        features[44] = 1.0
-    elif sim_attack == "Zero-Day Novel Exploit":
-        # Introduce massive outlier variance across multiple segment dimensions
-        for idx in [5, 10, 15, 20, 25, 40]:
-            features[idx] = 99999.0
-    elif sim_attack == "SSH Brute Force":
-        features[0] = 22.0        # Port 22
-        features[2] = 85.0
 
     res = analyze_network_flow(features, source_ip=ip)
     st.session_state.recent_threats.insert(0, res)

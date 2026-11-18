@@ -11,7 +11,7 @@ import pandas as pd
 class ModelExplainabilityEngine:
     def __init__(self, model=None, feature_names: List[str] = None):
         self.model = model
-        self.feature_names = feature_names or [f"feat_{i}" for i in range(93)]
+        self.feature_names = feature_names or [f"feat_{i}" for i in range(80)]
         self.explainer = None
 
     def explain_flow_prediction(
